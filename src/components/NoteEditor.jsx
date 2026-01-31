@@ -1,0 +1,680 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { Bold, Italic, Underline, List, Image as ImageIcon, BookOpen, Highlighter, PlusCircle, Maximize2 } from 'lucide-react';
+import { ImageGallery } from './ImageGallery';
+
+export function NoteEditor({ activeNote, folders = [], explanations = {}, images = [], onUpdateContent, onFileUpload, onAddExplanation, onUploadImage }) {
+    const fileInputRef = useRef(null);
+    const contentRef = useRef(null);
+    const [targetFolderId, setTargetFolderId] = useState(activeNote?.folderId || (folders[0]?.id));
+    const lastNoteIdRef = useRef(activeNote?.id);
+
+    // Explanation System State
+    const [popup, setPopup] = useState(null); // { x, y, term, explanation? }
+    const [pinnedPopup, setPinnedPopup] = useState(false); // Track if a popup is pinned
+    const [isSelectingExplanation, setIsSelectingExplanation] = useState(false);
+    const [pendingTerm, setPendingTerm] = useState(null);
+
+    // Image Definition State
+    const [isSelectingImage, setIsSelectingImage] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState(null); // Local lightbox for popup images
+
+    // Processing Highlighting using DOM
+    const applyHighlighting = () => {
+        if (!contentRef.current) return;
+
+        // 1. Strip existing explanation spans to avoid nesting/duplication
+        const spans = contentRef.current.querySelectorAll('.explained-term');
+        spans.forEach(span => {
+            const parent = span.parentNode;
+            parent.replaceChild(document.createTextNode(span.textContent), span);
+            parent.normalize(); // Merge text nodes
+        });
+
+        const terms = Object.keys(explanations).sort((a, b) => b.length - a.length); // Match longest first
+        if (terms.length === 0) return;
+
+        const walk = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null, false);
+        const textNodes = [];
+        let node;
+        while (node = walk.nextNode()) textNodes.push(node);
+
+        textNodes.forEach(textNode => {
+            if (textNode.parentElement.classList.contains('explained-term')) return;
+
+            let text = textNode.nodeValue;
+            let modified = false;
+            let fragment = document.createDocumentFragment();
+            let lastIndex = 0;
+
+            const regex = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+            let match;
+
+            while ((match = regex.exec(text)) !== null) {
+                modified = true;
+                fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+
+                const span = document.createElement('span');
+                span.className = 'explained-term';
+                span.textContent = match[0];
+                span.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                span.style.color = 'inherit';
+                span.style.borderBottom = 'none';
+                span.style.borderRadius = '4px';
+                span.style.padding = '0 2px';
+                span.style.cursor = 'help';
+                span.style.fontWeight = '500';
+                span.dataset.term = match[0].toLowerCase();
+                fragment.appendChild(span);
+
+                fragment.appendChild(document.createTextNode('\u200B'));
+
+                lastIndex = regex.lastIndex;
+            }
+
+            if (modified) {
+                fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+                textNode.parentNode.replaceChild(fragment, textNode);
+            }
+        });
+    };
+
+    useEffect(() => {
+        if (activeNote?.folderId) {
+            setTargetFolderId(activeNote.folderId);
+        } else if (folders.length > 0 && !targetFolderId) {
+            setTargetFolderId(folders.find(f => f.type !== 'system' && f.id !== 'all' && f.id !== 'deleted')?.id || folders[0].id);
+        }
+
+        if (activeNote && contentRef.current) {
+            if (activeNote.id !== lastNoteIdRef.current) {
+                contentRef.current.innerHTML = activeNote.content;
+                lastNoteIdRef.current = activeNote.id;
+                applyHighlighting();
+            }
+        }
+    }, [activeNote?.id, activeNote?.folderId, folders, targetFolderId]);
+
+    useEffect(() => {
+        if (activeNote && contentRef.current) {
+            applyHighlighting();
+        }
+    }, [explanations]);
+
+    // Handle Click on Terms (Pinning)
+    useEffect(() => {
+        const handleDocClick = (e) => {
+            if (e.target.classList.contains('explained-term')) {
+                const term = e.target.dataset.term;
+                const entry = Object.entries(explanations).find(([k]) => k.toLowerCase() === term);
+                if (entry) {
+                    const rect = e.target.getBoundingClientRect();
+                    setPopup({
+                        x: rect.left,
+                        y: rect.bottom + 5,
+                        term: entry[0],
+                        explanation: entry[1]
+                    });
+                    setPinnedPopup(true);
+                    e.stopPropagation(); // Prevent closing immediately
+                }
+            } else {
+                // Clicking elsewhere closes ONLY if not standard popup interaction (handled by stopPropagation on popup)
+                // We shouldn't close it here if we rely on the Close Button, but user said "keep pop up there until user closes it".
+                // So clicking elsewhere should NOT close it? "add close button in pop up for this".
+                // Okay, I will make it persistent so only the X closes it.
+                // So I do NOTHING here for closing.
+            }
+        };
+
+        // Attach to the editor container or document? Document catches all.
+        // But we have stopPropagation on the popup itself, so clicking inside popup won't trigger this.
+        document.addEventListener('click', handleDocClick);
+        return () => document.removeEventListener('click', handleDocClick);
+    }, [explanations]);
+
+
+    const handleMouseOver = (e) => {
+        if (pinnedPopup) return; // Don't change if pinned
+
+        if (e.target.classList.contains('explained-term')) {
+            const term = e.target.dataset.term;
+            const entry = Object.entries(explanations).find(([k]) => k.toLowerCase() === term);
+            if (entry) {
+                const rect = e.target.getBoundingClientRect();
+                setPopup({
+                    x: rect.left,
+                    y: rect.bottom + 5,
+                    term: entry[0],
+                    explanation: entry[1]
+                });
+            }
+        }
+    };
+
+    const handleMouseOut = (e) => {
+        if (pinnedPopup) return; // Don't close if pinned
+
+        if (e.target.classList.contains('explained-term')) {
+            setPopup(null);
+        }
+    };
+
+    const handleMouseUp = () => {
+        const selection = window.getSelection();
+        const selectedText = selection.toString().trim();
+        if (!selectedText) return;
+        if (isSelectingExplanation) return;
+    };
+
+    const confirmExplanationSelection = () => {
+        const selection = window.getSelection();
+        const explanationText = selection.toString().trim();
+        if (explanationText && pendingTerm) {
+            onAddExplanation(pendingTerm, explanationText);
+            setIsSelectingExplanation(false);
+            setPendingTerm(null);
+            setPopup(null);
+            setPinnedPopup(false);
+            window.getSelection().removeAllRanges();
+        }
+    };
+
+    const startAddExplanation = () => {
+        if (popup && popup.term) {
+            setPendingTerm(popup.term);
+            setIsSelectingExplanation(true);
+            setPopup(null);
+            setPinnedPopup(false);
+            return;
+        }
+        const selection = window.getSelection();
+        const term = selection.toString().trim();
+        if (!term) {
+            alert("Please highlight the term you want to define first.");
+            return;
+        }
+        setIsSelectingExplanation(true);
+        setPendingTerm(term);
+    };
+
+    const startAddImageExplanation = () => {
+        if (popup && popup.term) {
+            setPendingTerm(popup.term);
+            setIsSelectingImage(true);
+            setPopup(null);
+            setPinnedPopup(false);
+            return;
+        }
+        const selection = window.getSelection();
+        const term = selection.toString().trim();
+        if (!term) { alert("Please highlight the term first."); return; }
+        setPendingTerm(term);
+        setIsSelectingImage(true);
+    };
+
+    const handleSelectImageForTerm = (img) => {
+        if (pendingTerm) {
+            // Save image wrapper object as the explanation text
+            onAddExplanation(pendingTerm, { type: 'image', url: img.url });
+            setIsSelectingImage(false);
+            setPendingTerm(null);
+        }
+    };
+
+    if (!activeNote) {
+        return (
+            <div style={{ flex: 1, backgroundColor: 'var(--bg-content)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <p style={{ marginBottom: '20px' }}>Select a note or upload a file</p>
+                    <select
+                        value={targetFolderId}
+                        onChange={e => setTargetFolderId(e.target.value)}
+                        style={{
+                            marginRight: '10px',
+                            padding: '8px',
+                            backgroundColor: '#333',
+                            color: '#fff',
+                            border: '1px solid #444',
+                            borderRadius: '6px'
+                        }}
+                    >
+                        {folders.filter(f => f.id !== 'all' && f.id !== 'deleted').map(f => (
+                            <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                    </select>
+                    <div
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                            display: 'inline-flex',
+                            backgroundColor: 'var(--accent-color)',
+                            color: '#000',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            verticalAlign: 'middle'
+                        }}
+                    >
+                        <span style={{ fontSize: '24px', fontWeight: 300 }}>+</span>
+                    </div>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        accept=".docx"
+                        onChange={(e) => onFileUpload(e, targetFolderId)}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    const handleCommand = (command, value = null) => {
+        document.execCommand(command, false, value);
+        if (contentRef.current && onUpdateContent) {
+            onUpdateContent(activeNote.id, contentRef.current.innerHTML);
+        }
+    };
+
+    const handleHighlight = () => {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const isHighlighted = document.queryCommandValue('backColor') === 'rgb(253, 191, 45)' || document.queryCommandValue('hiliteColor') === 'rgb(253, 191, 45)';
+
+        if (isHighlighted) {
+            document.execCommand('removeFormat', false, null);
+        } else {
+            document.execCommand('hiliteColor', false, '#fdbf2d');
+        }
+
+        if (contentRef.current && onUpdateContent) {
+            onUpdateContent(activeNote.id, contentRef.current.innerHTML);
+        }
+    };
+
+    const handleInput = (e) => {
+        if (onUpdateContent) {
+            onUpdateContent(activeNote.id, e.currentTarget.innerHTML);
+        }
+    };
+
+    return (
+        <div style={{
+            flex: 1,
+            backgroundColor: 'var(--bg-content)',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative'
+        }}>
+            {/* Toolbar */}
+            <div style={{
+                height: '50px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                padding: '0 20px',
+                borderBottom: '1px solid var(--border-color)',
+            }}>
+
+                <div style={{ display: 'flex', gap: '10px', color: 'var(--text-secondary)' }}>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('bold')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bold"><b>B</b></button>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('italic')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Italic"><i>I</i></button>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('underline')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Underline"><u>U</u></button>
+                    <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('insertUnorderedList')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bullet List">• List</button>
+
+                    <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
+
+                    <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={startAddExplanation}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
+                        title="Add Text Definition"
+                    >
+                        <BookOpen size={18} />
+                    </button>
+
+                    <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={startAddImageExplanation}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
+                        title="Add Image Definition"
+                    >
+                        <ImageIcon size={18} />
+                    </button>
+
+                    <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={handleHighlight}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
+                        title="Highlight"
+                    >
+                        <Highlighter size={18} />
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
+                <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-primary)' }}>
+                    {activeNote.title}
+                </h1>
+
+                <div
+                    ref={contentRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={handleInput}
+                    onMouseUp={handleMouseUp}
+                    onMouseOver={handleMouseOver}
+                    onMouseOut={handleMouseOut}
+                    onBlur={applyHighlighting}
+                    style={{
+                        color: 'var(--text-primary)',
+                        lineHeight: '1.6',
+                        outline: 'none',
+                        minHeight: '200px'
+                    }}
+                />
+            </div>
+
+            {/* AMBOSS Style Popup */}
+            {popup && (
+                <div style={{
+                    position: 'fixed',
+                    top: popup.y,
+                    left: popup.x,
+                    backgroundColor: '#ffffff',
+                    color: '#333333',
+                    borderRadius: '8px',
+                    padding: '0',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1)',
+                    zIndex: 9999,
+                    width: '320px',
+                    maxWidth: '90vw',
+                    fontSize: '14px',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+                    border: '1px solid #e0e0e0',
+                    animation: 'fadeIn 0.2s ease-out'
+                }} onClick={(e) => e.stopPropagation()}>
+                    <style>{`
+                        @keyframes fadeIn {
+                            from { opacity: 0; transform: translateY(-5px); }
+                            to { opacity: 1; transform: translateY(0); }
+                        }
+                    `}</style>
+
+                    <div style={{
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #f0f0f0',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        backgroundColor: '#fafafa',
+                        borderTopLeftRadius: '8px',
+                        borderTopRightRadius: '8px'
+                    }}>
+                        <span style={{ fontWeight: 700, color: '#1a1a1a', fontSize: '15px' }}>{popup.term}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></div>
+                            {pinnedPopup && (
+                                <button
+                                    onClick={() => { setPopup(null); setPinnedPopup(false); }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#999',
+                                        cursor: 'pointer',
+                                        fontSize: '18px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: 0,
+                                        lineHeight: 1
+                                    }}
+                                    title="Close"
+                                >
+                                    &times;
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '16px', lineHeight: '1.5', maxHeight: '300px', overflowY: 'auto' }}>
+                        {popup.explanation ? (
+                            Array.isArray(popup.explanation) ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {popup.explanation.map((item, index) => {
+                                        let isImage = false;
+                                        let content = item.text;
+                                        // Check if text is actually an image wrapper
+                                        if (typeof content === 'object' && content !== null && content.type === 'image') {
+                                            isImage = true;
+                                        }
+
+                                        return (
+                                            <div key={item.id || index} style={{ borderBottom: index < popup.explanation.length - 1 ? '1px solid #eee' : 'none', paddingBottom: index < popup.explanation.length - 1 ? '12px' : '0' }}>
+                                                {isImage ? (
+                                                    <div
+                                                        style={{ marginTop: '4px', marginBottom: '4px', cursor: 'pointer' }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // prevent triggering other clicks
+                                                            setLightboxImage(content.url);
+                                                        }}
+                                                        title="Click to expand"
+                                                    >
+                                                        <img src={content.url} alt="Reference" style={{ width: '100%', borderRadius: '4px', border: '1px solid #eee' }} />
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ fontSize: '14px', marginBottom: '4px' }}>{content}</div>
+                                                )}
+                                                <div style={{ fontSize: '11px', color: '#888', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ddd' }}></span>
+                                                    Source: {item.source}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div>{popup.explanation}</div>
+                            )
+                        ) : (
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button
+                                    onClick={startAddExplanation}
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: '#3b82f6',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        padding: '8px 12px',
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    + Add Text
+                                </button>
+                                <button
+                                    onClick={startAddImageExplanation}
+                                    style={{
+                                        flex: 1,
+                                        backgroundColor: '#f59e0b',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        padding: '8px 12px',
+                                        fontSize: '13px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px'
+                                    }}
+                                >
+                                    <ImageIcon size={18} /> Add Image
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Lightbox Modal for Popup Images */}
+            {lightboxImage && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.9)',
+                    zIndex: 12000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px',
+                    animation: 'fadeIn 0.2s ease-out'
+                }} onClick={() => setLightboxImage(null)}>
+                    <img
+                        src={lightboxImage}
+                        alt="Full View"
+                        style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }}
+                        onClick={e => e.stopPropagation()}
+                    />
+                    <button
+                        onClick={() => setLightboxImage(null)}
+                        style={{
+                            position: 'absolute',
+                            top: '20px',
+                            right: '20px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#fff',
+                            fontSize: '30px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        &times;
+                    </button>
+                </div>
+            )}
+
+            {/* Selection Mode Overlay (Text) */}
+            {isSelectingExplanation && (
+                <div style={{
+                    position: 'fixed', top: '100px', left: '50%', transform: 'translateX(-50%)',
+                    backgroundColor: '#fff', color: '#333', padding: '10px 20px', borderRadius: '12px',
+                    fontWeight: 500, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10000,
+                    display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid #eee'
+                }}>
+                    <span style={{ fontSize: '14px' }}>Select definition text for <b style={{ color: '#3b82f6' }}>{pendingTerm}</b></span>
+                    <button onMouseDown={e => e.preventDefault()} onClick={confirmExplanationSelection} style={{ backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>Confirm</button>
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => { setIsSelectingExplanation(false); setPendingTerm(null); }} style={{ backgroundColor: 'transparent', color: '#666', border: '1px solid #ddd', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
+                </div>
+            )}
+
+            {/* Selection Mode Overlay (Image) */}
+            {isSelectingImage && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    zIndex: 11000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px'
+                }}>
+                    <div style={{
+                        width: '80%',
+                        height: '80%',
+                        backgroundColor: '#1E1E1E',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+                    }}>
+                        <div style={{ padding: '15px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0, color: '#fff' }}>Select Image for "{pendingTerm}"</h3>
+                            <button onClick={() => setIsSelectingImage(false)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                        <ImageGallery
+                            images={images}
+                            onUploadImage={onUploadImage}
+                            onSelectImage={handleSelectImageForTerm}
+                            onDeleteImage={() => { }} // Disable delete in selection mode
+                        />
+                    </div>
+                </div>
+            )}
+
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept=".docx"
+                onChange={(e) => onFileUpload(e, targetFolderId)}
+            />
+
+            <div style={{
+                position: 'absolute',
+                bottom: '30px',
+                right: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+            }}>
+                <select
+                    value={targetFolderId}
+                    onChange={e => setTargetFolderId(e.target.value)}
+                    style={{
+                        padding: '8px',
+                        backgroundColor: '#333',
+                        color: '#fff',
+                        border: '1px solid #444',
+                        borderRadius: '6px',
+                        outline: 'none',
+                        cursor: 'pointer'
+                    }}
+                    title="Upload Target Folder"
+                >
+                    {folders.filter(f => f.id !== 'all' && f.id !== 'deleted').map(f => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                </select>
+
+                <div
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                        backgroundColor: 'var(--accent-color)',
+                        color: '#000',
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        cursor: 'pointer',
+                        transition: 'transform 0.1s'
+                    }}
+                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
+                    onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                    title="Upload DOCX"
+                >
+                    <span style={{ fontSize: '24px', fontWeight: 300 }}>+</span>
+                </div>
+            </div>
+        </div>
+    );
+}
