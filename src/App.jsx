@@ -287,6 +287,14 @@ function App() {
     saveExplanations(newExplanations);
   };
 
+  const handleDeleteImage = (id) => {
+    setImages(prev => {
+      const newImages = prev.filter(img => img.id !== id);
+      saveImages(newImages);
+      return newImages;
+    });
+  };
+
   const handleUploadImage = async (file) => {
     const reader = new FileReader();
     reader.onloadend = () => {
