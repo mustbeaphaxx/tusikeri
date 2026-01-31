@@ -19,11 +19,7 @@ export function ImageGallery({ images = [], onUploadImage, onDeleteImage, onSele
             {/* Header */}
             <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {isMobile && (
-                        <button onClick={onToggleSidebar} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                            <Menu size={20} color="var(--text-secondary)" />
-                        </button>
-                    )}
+                    {/* Menu Button removed from here (moved to FAB) */}
                     <Camera size={20} color="var(--accent-color)" />
                     {isSelectionMode ? 'Select an Image' : 'Image Gallery'}
                 </h2>
@@ -137,6 +133,37 @@ export function ImageGallery({ images = [], onUploadImage, onDeleteImage, onSele
                     </div>
                 )}
             </div>
+
+            {/* Menu FAB (Mobile Only) */}
+            {isMobile && (
+                <div
+                    onClick={onToggleSidebar}
+                    style={{
+                        position: 'absolute',
+                        bottom: '30px',
+                        left: '30px',
+                        backgroundColor: 'var(--bg-sidebar)',
+                        color: 'var(--text-primary)',
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        cursor: 'pointer',
+                        transition: 'transform 0.1s',
+                        zIndex: 60,
+                        border: '1px solid var(--border-color)'
+                    }}
+                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
+                    onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                    title="Open Menu"
+                >
+                    <Menu size={24} />
+                </div>
+            )}
+
 
             {/* Lightbox Modal */}
             {lightboxImage && (
