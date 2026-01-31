@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Book, Trash2, Search, ChevronDown, ChevronRight, Menu } from 'lucide-react';
 
-export function TermManager({ explanations, onUpdateExplanations }) {
+export function TermManager({ explanations, onUpdateExplanations, isMobile, onToggleSidebar }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedTerms, setExpandedTerms] = useState({});
 
