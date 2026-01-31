@@ -8,7 +8,292 @@ export function NoteEditor({ activeNote, folders = [], explanations = {}, images
     const [targetFolderId, setTargetFolderId] = useState(activeNote?.folderId || (folders[0]?.id));
     const lastNoteIdRef = useRef(activeNote?.id);
 
-    // ... (rest of code) ...
+    // Explanation System State
+    const [popup, setPopup] = useState(null); // { x, y, term, explanation? }
+    const [pinnedPopup, setPinnedPopup] = useState(false); // Track if a popup is pinned
+    const [isSelectingExplanation, setIsSelectingExplanation] = useState(false);
+    const [pendingTerm, setPendingTerm] = useState(null);
+
+    // Image Definition State
+    const [isSelectingImage, setIsSelectingImage] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState(null); // Local lightbox for popup images
+
+    // Processing Highlighting using DOM
+    const applyHighlighting = () => {
+        if (!contentRef.current) return;
+
+        // 1. Strip existing explanation spans to avoid nesting/duplication
+        const spans = contentRef.current.querySelectorAll('.explained-term');
+        spans.forEach(span => {
+            const parent = span.parentNode;
+            parent.replaceChild(document.createTextNode(span.textContent), span);
+            parent.normalize(); // Merge text nodes
+        });
+
+        const terms = Object.keys(explanations).sort((a, b) => b.length - a.length); // Match longest first
+        if (terms.length === 0) return;
+
+        const walk = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_TEXT, null, false);
+        const textNodes = [];
+        let node;
+        while (node = walk.nextNode()) textNodes.push(node);
+
+        textNodes.forEach(textNode => {
+            if (textNode.parentElement.classList.contains('explained-term')) return;
+
+            let text = textNode.nodeValue;
+            let modified = false;
+            let fragment = document.createDocumentFragment();
+            let lastIndex = 0;
+
+            const regex = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+            let match;
+
+            while ((match = regex.exec(text)) !== null) {
+                modified = true;
+                fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+
+                const span = document.createElement('span');
+                span.className = 'explained-term';
+                span.textContent = match[0];
+                span.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                span.style.color = 'inherit';
+                span.style.borderBottom = 'none';
+                span.style.borderRadius = '4px';
+                span.style.padding = '0 2px';
+                span.style.cursor = 'help';
+                span.style.fontWeight = '500';
+                span.dataset.term = match[0].toLowerCase();
+                fragment.appendChild(span);
+
+                fragment.appendChild(document.createTextNode('\u200B'));
+
+                lastIndex = regex.lastIndex;
+            }
+
+            if (modified) {
+                fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+                textNode.parentNode.replaceChild(fragment, textNode);
+            }
+        });
+    };
+
+    useEffect(() => {
+        if (activeNote?.folderId) {
+            setTargetFolderId(activeNote.folderId);
+        } else if (folders.length > 0 && !targetFolderId) {
+            setTargetFolderId(folders.find(f => f.type !== 'system' && f.id !== 'all' && f.id !== 'deleted')?.id || folders[0].id);
+        }
+
+        if (activeNote && contentRef.current) {
+            if (activeNote.id !== lastNoteIdRef.current) {
+                contentRef.current.innerHTML = activeNote.content;
+                lastNoteIdRef.current = activeNote.id;
+                applyHighlighting();
+            }
+        }
+    }, [activeNote?.id, activeNote?.folderId, folders, targetFolderId]);
+
+    useEffect(() => {
+        if (activeNote && contentRef.current) {
+            applyHighlighting();
+        }
+    }, [explanations]);
+
+    // Handle Click on Terms (Pinning)
+    useEffect(() => {
+        const handleDocClick = (e) => {
+            if (e.target.classList.contains('explained-term')) {
+                const term = e.target.dataset.term;
+                const entry = Object.entries(explanations).find(([k]) => k.toLowerCase() === term);
+                if (entry) {
+                    const rect = e.target.getBoundingClientRect();
+                    setPopup({
+                        x: rect.left,
+                        y: rect.bottom + 5,
+                        term: entry[0],
+                        explanation: entry[1]
+                    });
+                    setPinnedPopup(true);
+                    e.stopPropagation(); // Prevent closing immediately
+                }
+            } else {
+                // Clicking elsewhere closes ONLY if not standard popup interaction (handled by stopPropagation on popup)
+            }
+        };
+
+        document.addEventListener('click', handleDocClick);
+        return () => document.removeEventListener('click', handleDocClick);
+    }, [explanations]);
+
+
+    const handleMouseOver = (e) => {
+        if (pinnedPopup) return; // Don't change if pinned
+
+        if (e.target.classList.contains('explained-term')) {
+            const term = e.target.dataset.term;
+            const entry = Object.entries(explanations).find(([k]) => k.toLowerCase() === term);
+            if (entry) {
+                const rect = e.target.getBoundingClientRect();
+                setPopup({
+                    x: rect.left,
+                    y: rect.bottom + 5,
+                    term: entry[0],
+                    explanation: entry[1]
+                });
+            }
+        }
+    };
+
+    const handleMouseOut = (e) => {
+        if (pinnedPopup) return; // Don't close if pinned
+
+        if (e.target.classList.contains('explained-term')) {
+            setPopup(null);
+        }
+    };
+
+    const handleMouseUp = () => {
+        const selection = window.getSelection();
+        const selectedText = selection.toString().trim();
+        if (!selectedText) return;
+        if (isSelectingExplanation) return;
+    };
+
+    const confirmExplanationSelection = () => {
+        const selection = window.getSelection();
+        const explanationText = selection.toString().trim();
+        if (explanationText && pendingTerm) {
+            onAddExplanation(pendingTerm, explanationText);
+            setIsSelectingExplanation(false);
+            setPendingTerm(null);
+            setPopup(null);
+            setPinnedPopup(false);
+            window.getSelection().removeAllRanges();
+        }
+    };
+
+    const startAddExplanation = () => {
+        if (popup && popup.term) {
+            setPendingTerm(popup.term);
+            setIsSelectingExplanation(true);
+            setPopup(null);
+            setPinnedPopup(false);
+            return;
+        }
+        const selection = window.getSelection();
+        const term = selection.toString().trim();
+        if (!term) {
+            alert("Please highlight the term you want to define first.");
+            return;
+        }
+        setIsSelectingExplanation(true);
+        setPendingTerm(term);
+    };
+
+    const startAddImageExplanation = () => {
+        if (popup && popup.term) {
+            setPendingTerm(popup.term);
+            setIsSelectingImage(true);
+            setPopup(null);
+            setPinnedPopup(false);
+            return;
+        }
+        const selection = window.getSelection();
+        const term = selection.toString().trim();
+        if (!term) { alert("Please highlight the term first."); return; }
+        setPendingTerm(term);
+        setIsSelectingImage(true);
+    };
+
+    const handleSelectImageForTerm = (img) => {
+        if (pendingTerm) {
+            // Save image wrapper object as the explanation text
+            onAddExplanation(pendingTerm, { type: 'image', url: img.url });
+            setIsSelectingImage(false);
+            setPendingTerm(null);
+        }
+    };
+
+    if (!activeNote) {
+        return (
+            <div style={{ flex: 1, backgroundColor: 'var(--bg-content)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <p style={{ marginBottom: '20px' }}>Select a note or upload a file</p>
+                    <select
+                        value={targetFolderId}
+                        onChange={e => setTargetFolderId(e.target.value)}
+                        style={{
+                            marginRight: '10px',
+                            padding: '8px',
+                            backgroundColor: '#333',
+                            color: '#fff',
+                            border: '1px solid #444',
+                            borderRadius: '6px'
+                        }}
+                    >
+                        {folders.filter(f => f.id !== 'all' && f.id !== 'deleted').map(f => (
+                            <option key={f.id} value={f.id}>{f.name}</option>
+                        ))}
+                    </select>
+                    <div
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                            display: 'inline-flex',
+                            backgroundColor: 'var(--accent-color)',
+                            color: '#000',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            verticalAlign: 'middle'
+                        }}
+                    >
+                        <span style={{ fontSize: '24px', fontWeight: 300 }}>+</span>
+                    </div>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        accept=".docx"
+                        onChange={(e) => onFileUpload(e, targetFolderId)}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    const handleCommand = (command, value = null) => {
+        document.execCommand(command, false, value);
+        if (contentRef.current && onUpdateContent) {
+            onUpdateContent(activeNote.id, contentRef.current.innerHTML);
+        }
+    };
+
+    const handleHighlight = () => {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const isHighlighted = document.queryCommandValue('backColor') === 'rgb(253, 191, 45)' || document.queryCommandValue('hiliteColor') === 'rgb(253, 191, 45)';
+
+        if (isHighlighted) {
+            document.execCommand('removeFormat', false, null);
+        } else {
+            document.execCommand('hiliteColor', false, '#fdbf2d');
+        }
+
+        if (contentRef.current && onUpdateContent) {
+            onUpdateContent(activeNote.id, contentRef.current.innerHTML);
+        }
+    };
+
+    const handleInput = (e) => {
+        if (onUpdateContent) {
+            onUpdateContent(activeNote.id, e.currentTarget.innerHTML);
+        }
+    };
 
     return (
         <div style={{
