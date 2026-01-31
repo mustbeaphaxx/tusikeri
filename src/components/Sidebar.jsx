@@ -51,7 +51,7 @@ export function Sidebar({ folders, notes, activeFolderId, activeNoteId, onFolder
 
     return (
         <div style={{
-            width: '300px',
+            width: '100%',
             backgroundColor: 'var(--bg-sidebar)',
             borderRight: '1px solid #000',
             display: 'flex',

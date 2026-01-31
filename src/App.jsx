@@ -273,40 +273,86 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  const handleDeleteImage = (id) => {
-    setImages(prev => {
-      const newImages = prev.filter(img => img.id !== id);
-      saveImages(newImages);
-      return newImages;
-    });
+  // -------------------------------------------------------------------------
+  // MOBILE RESPONSIVENESS
+  // -------------------------------------------------------------------------
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) setSidebarOpen(true); // Always open on desktop
+      if (mobile) setSidebarOpen(false); // Default close on mobile switch
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
+  // Auto-close sidebar on mobile selection
+  const handleMobileSelect = () => {
+    if (isMobile) setSidebarOpen(false);
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      <Sidebar
-        folders={folders}
-        notes={notes}
-        activeFolderId={activeFolderId}
-        activeNoteId={activeNoteId}
-        onFolderSelect={setActiveFolderId}
-        onNoteSelect={setActiveNoteId}
-        onAddFolder={addFolder}
-        onRenameFolder={renameFolder}
-        onDeleteFolder={deleteFolder}
-        onRenameNote={renameNote}
-        onDeleteNote={deleteNote}
-        onMoveNote={moveNote}
-      />
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', position: 'relative' }}>
+
+      {/* Mobile Backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 90
+          }}
+        />
+      )}
+
+      {/* Sidebar - Conditional Rendering/Styling */}
+      <div style={{
+        width: '300px',
+        height: '100%',
+        position: isMobile ? 'absolute' : 'relative',
+        left: isMobile ? (sidebarOpen ? '0' : '-300px') : '0',
+        transition: 'left 0.3s ease',
+        zIndex: 100,
+        backgroundColor: 'var(--bg-sidebar)',
+        borderRight: '1px solid #000',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        <Sidebar
+          folders={folders}
+          notes={notes}
+          activeFolderId={activeFolderId}
+          activeNoteId={activeNoteId}
+          onFolderSelect={(id) => { setActiveFolderId(id); handleMobileSelect(); }}
+          onNoteSelect={(id) => { setActiveNoteId(id); handleMobileSelect(); }}
+          onAddFolder={addFolder}
+          onRenameFolder={renameFolder}
+          onDeleteFolder={deleteFolder}
+          onRenameNote={renameNote}
+          onDeleteNote={deleteNote}
+          onMoveNote={moveNote}
+        />
+      </div>
+
       {activeFolderId === 'terms' ? (
         <TermManager
           explanations={explanations}
           onUpdateExplanations={handleUpdateExplanations}
+          isMobile={isMobile}
+          onToggleSidebar={toggleSidebar}
         />
       ) : activeFolderId === 'images' ? (
         <ImageGallery
           images={images}
           onUploadImage={handleUploadImage}
           onDeleteImage={handleDeleteImage}
+          isMobile={isMobile}
+          onToggleSidebar={toggleSidebar}
         />
       ) : (
         <NoteEditor
@@ -318,6 +364,8 @@ function App() {
           onFileUpload={handleFileUpload}
           onAddExplanation={addExplanation}
           onUploadImage={handleUploadImage}
+          isMobile={isMobile}
+          onToggleSidebar={toggleSidebar}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, Trash2, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Book, Trash2, Search, ChevronDown, ChevronRight, Menu } from 'lucide-react';
 
 export function TermManager({ explanations, onUpdateExplanations }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -38,6 +38,11 @@ export function TermManager({ explanations, onUpdateExplanations }) {
         <div style={{ flex: 1, backgroundColor: 'var(--bg-content)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {isMobile && (
+                        <button onClick={onToggleSidebar} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                            <Menu size={20} color="var(--text-secondary)" />
+                        </button>
+                    )}
                     <Book size={20} color="var(--accent-color)" />
                     Term Dictionary
                 </h2>

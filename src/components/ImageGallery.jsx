@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Upload, Trash2, Maximize2 } from 'lucide-react';
+import { Camera, Upload, Trash2, Maximize2, Menu } from 'lucide-react';
 
-export function ImageGallery({ images = [], onUploadImage, onDeleteImage, onSelectImage, selectedImageId }) {
+export function ImageGallery({ images = [], onUploadImage, onDeleteImage, onSelectImage, selectedImageId, isMobile, onToggleSidebar }) {
     const fileInputRef = useRef(null);
     const [lightboxImage, setLightboxImage] = useState(null);
 
@@ -19,6 +19,11 @@ export function ImageGallery({ images = [], onUploadImage, onDeleteImage, onSele
             {/* Header */}
             <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {isMobile && (
+                        <button onClick={onToggleSidebar} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                            <Menu size={20} color="var(--text-secondary)" />
+                        </button>
+                    )}
                     <Camera size={20} color="var(--accent-color)" />
                     {isSelectionMode ? 'Select an Image' : 'Image Gallery'}
                 </h2>
