@@ -97,29 +97,45 @@ export function TermManager({ explanations, onUpdateExplanations }) {
 
                                     {isExpanded && (
                                         <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                            {definitions.map((def, idx) => (
-                                                <div key={def.id || idx} style={{ padding: '12px 16px', borderBottom: idx < definitions.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none', display: 'flex', gap: '10px' }}>
-                                                    <div style={{ flex: 1 }}>
-                                                        {typeof def.text === 'object' && def.text?.type === 'image' ? (
+                                            {definitions.map((def, idx) => {
+                                                // Robust Rendering Logic
+                                                let content;
+                                                const raw = def.text;
+
+                                                if (typeof raw === 'object' && raw !== null) {
+                                                    if (raw.type === 'image' && raw.url) {
+                                                        content = (
                                                             <img
-                                                                src={def.text.url}
+                                                                src={raw.url}
                                                                 alt="Defined Image"
                                                                 style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '4px', border: '1px solid #444', marginTop: '4px' }}
                                                             />
-                                                        ) : (
-                                                            <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#ddd' }}>{def.text}</div>
-                                                        )}
-                                                        <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', fontStyle: 'italic' }}>Source: {def.source}</div>
+                                                        );
+                                                    } else {
+                                                        // Fallback for unknown objects to PREVENT CRASH
+                                                        content = <code style={{ fontSize: '12px', color: 'orange', display: 'block', padding: '4px', background: 'rgba(255,255,255,0.05)' }}>{JSON.stringify(raw)}</code>;
+                                                    }
+                                                } else {
+                                                    // Standard string or primitive
+                                                    content = <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#ddd' }}>{String(raw)}</div>;
+                                                }
+
+                                                return (
+                                                    <div key={def.id || idx} style={{ padding: '12px 16px', borderBottom: idx < definitions.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none', display: 'flex', gap: '10px' }}>
+                                                        <div style={{ flex: 1 }}>
+                                                            {content}
+                                                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', fontStyle: 'italic' }}>Source: {def.source}</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => deleteDefinition(term, def.id)}
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px', height: 'fit-content' }}
+                                                            title="Delete Definition"
+                                                        >
+                                                            <Trash2 size={14} className="trash-icon" />
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        onClick={() => deleteDefinition(term, def.id)}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px', height: 'fit-content' }}
-                                                        title="Delete Definition"
-                                                    >
-                                                        <Trash2 size={14} className="trash-icon" />
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
