@@ -398,57 +398,33 @@ export function NoteEditor({ activeNote, folders = [], explanations = {}, images
                 />
             </div>
 
-            {/* Mobile Bottom Toolbar */}
+            {/* Menu FAB (Mobile Only) */}
             {isMobile && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: '60px',
-                    backgroundColor: 'var(--bg-sidebar)', // Slightly darker
-                    borderTop: '1px solid var(--border-color)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-around', // Distribute evenly
-                    padding: '0 10px',
-                    zIndex: 50,
-                    color: 'var(--text-secondary)'
-                }}>
-                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('bold')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bold"><b>B</b></button>
-                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('italic')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Italic"><i>I</i></button>
-                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('underline')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Underline"><u>U</u></button>
-                    <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
-                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('insertUnorderedList')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bullet List"><List size={18} /></button>
-
-                    <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
-
-                    <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={startAddExplanation}
-                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
-                        title="Add Text Definition"
-                    >
-                        <BookOpen size={18} />
-                    </button>
-
-                    <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={startAddImageExplanation}
-                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
-                        title="Add Image Definition"
-                    >
-                        <ImageIcon size={18} />
-                    </button>
-
-                    <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={handleHighlight}
-                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
-                        title="Highlight"
-                    >
-                        <Highlighter size={18} />
-                    </button>
+                <div
+                    onClick={onToggleSidebar}
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        left: '15px',
+                        backgroundColor: 'var(--bg-sidebar)',
+                        color: 'var(--text-primary)',
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        cursor: 'pointer',
+                        zIndex: 60,
+                        border: '1px solid var(--border-color)'
+                    }}
+                    onMouseDown={e => e.currentTarget.style.transform = 'translateY(-50%) scale(0.95)'}
+                    onMouseUp={e => e.currentTarget.style.transform = 'translateY(-50%) scale(1)'}
+                    title="Open Menu"
+                >
+                    <Menu size={24} />
                 </div>
             )}
 

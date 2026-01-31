@@ -152,8 +152,9 @@ export function TermManager({ explanations, onUpdateExplanations, isMobile, onTo
                     onClick={onToggleSidebar}
                     style={{
                         position: 'absolute',
-                        bottom: '30px',
-                        left: '30px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        left: '15px',
                         backgroundColor: 'var(--bg-sidebar)',
                         color: 'var(--text-primary)',
                         width: '50px',
@@ -164,12 +165,11 @@ export function TermManager({ explanations, onUpdateExplanations, isMobile, onTo
                         justifyContent: 'center',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                         cursor: 'pointer',
-                        transition: 'transform 0.1s',
                         zIndex: 60,
                         border: '1px solid var(--border-color)'
                     }}
-                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
-                    onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                    onMouseDown={e => e.currentTarget.style.transform = 'translateY(-50%) scale(0.95)'}
+                    onMouseUp={e => e.currentTarget.style.transform = 'translateY(-50%) scale(1)'}
                     title="Open Menu"
                 >
                     <Menu size={24} />
