@@ -100,7 +100,15 @@ export function TermManager({ explanations, onUpdateExplanations }) {
                                             {definitions.map((def, idx) => (
                                                 <div key={def.id || idx} style={{ padding: '12px 16px', borderBottom: idx < definitions.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none', display: 'flex', gap: '10px' }}>
                                                     <div style={{ flex: 1 }}>
-                                                        <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#ddd' }}>{def.text}</div>
+                                                        {typeof def.text === 'object' && def.text?.type === 'image' ? (
+                                                            <img
+                                                                src={def.text.url}
+                                                                alt="Defined Image"
+                                                                style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '4px', border: '1px solid #444', marginTop: '4px' }}
+                                                            />
+                                                        ) : (
+                                                            <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#ddd' }}>{def.text}</div>
+                                                        )}
                                                         <div style={{ fontSize: '12px', color: '#666', marginTop: '4px', fontStyle: 'italic' }}>Source: {def.source}</div>
                                                     </div>
                                                     <button
