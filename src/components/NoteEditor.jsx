@@ -303,14 +303,15 @@ export function NoteEditor({ activeNote, folders = [], explanations = {}, images
             flexDirection: 'column',
             position: 'relative'
         }}>
-            {/* Toolbar */}
+            {/* Desktop Toolbar (All-in-one) or Mobile Top Bar (Menu Only) */}
             <div style={{
                 height: '50px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between', // Changed for Menu button
+                justifyContent: 'space-between',
                 padding: '0 20px',
                 borderBottom: '1px solid var(--border-color)',
+                flexShrink: 0
             }}>
 
                 {/* Left Side: Menu Button (Mobile Only) */}
@@ -333,12 +334,92 @@ export function NoteEditor({ activeNote, folders = [], explanations = {}, images
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', color: 'var(--text-secondary)' }}>
+                {/* Desktop Formatting Tools (Hidden on Mobile) */}
+                {!isMobile && (
+                    <div style={{ display: 'flex', gap: '10px', color: 'var(--text-secondary)' }}>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('bold')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bold"><b>B</b></button>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('italic')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Italic"><i>I</i></button>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('underline')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Underline"><u>U</u></button>
+                        <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
+                        <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('insertUnorderedList')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bullet List">• List</button>
+
+                        <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
+
+                        <button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={startAddExplanation}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
+                            title="Add Text Definition"
+                        >
+                            <BookOpen size={18} />
+                        </button>
+
+                        <button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={startAddImageExplanation}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
+                            title="Add Image Definition"
+                        >
+                            <ImageIcon size={18} />
+                        </button>
+
+                        <button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={handleHighlight}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer' }}
+                            title="Highlight"
+                        >
+                            <Highlighter size={18} />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div style={{ flex: 1, padding: '40px', overflowY: 'auto', paddingBottom: isMobile ? '140px' : '40px' }}>
+                <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-primary)' }}>
+                    {activeNote.title}
+                </h1>
+
+                <div
+                    ref={contentRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={handleInput}
+                    onMouseUp={handleMouseUp}
+                    onMouseOver={handleMouseOver}
+                    onMouseOut={handleMouseOut}
+                    onBlur={applyHighlighting}
+                    style={{
+                        color: 'var(--text-primary)',
+                        lineHeight: '1.6',
+                        outline: 'none',
+                        minHeight: '200px'
+                    }}
+                />
+            </div>
+
+            {/* Mobile Bottom Toolbar */}
+            {isMobile && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '60px',
+                    backgroundColor: 'var(--bg-sidebar)', // Slightly darker
+                    borderTop: '1px solid var(--border-color)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-around', // Distribute evenly
+                    padding: '0 10px',
+                    zIndex: 50,
+                    color: 'var(--text-secondary)'
+                }}>
                     <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('bold')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bold"><b>B</b></button>
                     <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('italic')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Italic"><i>I</i></button>
                     <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('underline')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Underline"><u>U</u></button>
                     <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
-                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('insertUnorderedList')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bullet List">• List</button>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => handleCommand('insertUnorderedList')} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }} title="Bullet List"><List size={18} /></button>
 
                     <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--border-color)' }}></div>
 
@@ -369,30 +450,7 @@ export function NoteEditor({ activeNote, folders = [], explanations = {}, images
                         <Highlighter size={18} />
                     </button>
                 </div>
-            </div>
-
-            <div style={{ flex: 1, padding: '40px', overflowY: 'auto' }}>
-                <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '20px', color: 'var(--text-primary)' }}>
-                    {activeNote.title}
-                </h1>
-
-                <div
-                    ref={contentRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={handleInput}
-                    onMouseUp={handleMouseUp}
-                    onMouseOver={handleMouseOver}
-                    onMouseOut={handleMouseOut}
-                    onBlur={applyHighlighting}
-                    style={{
-                        color: 'var(--text-primary)',
-                        lineHeight: '1.6',
-                        outline: 'none',
-                        minHeight: '200px'
-                    }}
-                />
-            </div>
+            )}
 
             {/* AMBOSS Style Popup */}
             {popup && (
@@ -642,7 +700,7 @@ export function NoteEditor({ activeNote, folders = [], explanations = {}, images
 
             <div style={{
                 position: 'absolute',
-                bottom: '30px',
+                bottom: isMobile ? '80px' : '30px', // Adjusted for mobile bottom bar
                 right: '30px',
                 display: 'flex',
                 alignItems: 'center',
